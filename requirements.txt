@@ -4,3 +4,5 @@ streamlit==1.33.0
 torch==2.3.0
 scikit-learn==1.4.2
 transformers==4.40.1
+streamlit-extras==0.4.2
+st-star-rating==0.0.6
