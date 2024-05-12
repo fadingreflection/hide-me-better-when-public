@@ -1,10 +1,11 @@
 import streamlit as st
 import pandas as pd
 import numpy as np
-from Predictor import Predictor as Predictor_
+from Predictor2 import Predictor as Predictor_
 import sys
 sys.tracebacklimit=0
 import warnings
+import pickle
 warnings.filterwarnings("ignore")
 from streamlit_extras.stateful_button import button as stbutton
 
@@ -30,13 +31,19 @@ def initial_set_page():
     
 initial_set_page()
 
+
 df_approved=pd.read_csv('df_orgs.csv')
+with open('embeddings_dostup.pickle', 'rb') as file:
+    dostup_embeddings = pickle.load(file)
+df_approved['embeddings']=dostup_embeddings['embeddings']
+
+_predictor2=Predictor_(df_approved)
+
 
 
 @st.cache_data
-def find_most_similar(df, target):
-    predictor_instance=Predictor_(df, target)
-    indexes, res, distance=predictor_instance.find_matches()
+def find_most_similar(_predictor_instance, target):
+    indexes, res, distance =_predictor_instance.find_matches(target)
     return indexes, res, distance
 
 
@@ -60,7 +67,7 @@ st.header("")
     
 checkbox= st.checkbox('Узнать про возможности Вашей площадки')
 if checkbox:
-    indexes, res, distance=find_most_similar(df_approved, st.session_state.venue)
+    indexes, res, distance=find_most_similar(_predictor2, st.session_state.venue) 
     if distance>CUTOFF:
         st.write('\n')
         st.write(':red[Не найдено сведений в реестре доступности]')
@@ -68,7 +75,17 @@ if checkbox:
         st.write('По Вашему запросу найдена площадка:', res.values[0])
         df_temp=df_approved.drop(['Unnamed: 0', 'Адрес', 'Название учреждения', 'vector'], axis=1).loc[indexes]
         df_temp=df_temp.reset_index().drop('index', axis=1).T.rename({0:'Доступность объекта'}, axis=1)
-        df_temp['Доступность объекта']=df_temp['Доступность объекта'].apply(lambda x: '✅   да' if x==1 else '❌   нет')     
+        
+        def map_labels(x):
+            if x=='1':
+                res='✅   да'
+            elif x=='0':
+                res='❌   нет'
+            else:
+                res=x
+            return res
+                
+        df_temp['Доступность объекта']=df_temp['Доступность объекта'].apply(lambda x: map_labels(str(x)))     
         df_temp.index.rename('Категории посетителей', inplace=True)  
         st.write('\n')
         st.write('\n')
@@ -84,21 +101,11 @@ if checkbox:
         st.write('\n')
         st.write('\n')
         
-        
-# checkbox= st.checkbox('Обновить информацию о площадке')
+
 update_button=stbutton('Обновить информацию о площадке', key='update')
 st.write('\n')
-# if checkbox:
-if update_button:
-    # options = st.multiselect(
-    # ':black[Выберите возможности. предоставляемые Вашей площадкой]', options=
-    # ["Параметр 1", "Параметр 2", "Параметр 3"])
-    
-    # for x in options:
-    #     st.write("Вы выбрали:", x)
-    
-    # st.write('\n')
-    
+
+if update_button:   
                 
     with st.form("owner_form"):
         st.subheader('Заполните сведения о Вашей площадке')
