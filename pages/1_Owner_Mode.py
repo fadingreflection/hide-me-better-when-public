@@ -1,7 +1,7 @@
 import streamlit as st
 import pandas as pd
 import numpy as np
-from Predictor2 import Predictor as Predictor_
+from Predictor import Predictor as Predictor_
 import sys
 sys.tracebacklimit=0
 import warnings
