@@ -1,8 +1,9 @@
 import streamlit as st
 import pandas as pd
 import numpy as np
-from Predictor import Predictor as Predictor_
+from Predictor2 import Predictor as Predictor_
 import sys
+import pickle
 sys.tracebacklimit=0
 import warnings
 warnings.filterwarnings("ignore")
@@ -10,10 +11,19 @@ from streamlit_extras.stateful_button import button as stbutton
 
 
 df_mts=pd.read_csv('venues_mts.csv').dropna()
-df_approved=pd.read_csv('df_orgs.csv')
+with open('embeddings_mts.pickle', 'rb') as file:
+    mts_embeddings = pickle.load(file)
 
-# _predictor1=Predictor_(df_mts)
-# _predictor2=Predictor_(df_approved)
+df_mts['embeddings']=mts_embeddings['embeddings']
+
+df_approved=pd.read_csv('df_orgs.csv')
+with open('embeddings_dostup.pickle', 'rb') as file:
+    dostup_embeddings = pickle.load(file)
+
+df_approved['embeddings']=dostup_embeddings['embeddings']
+
+_predictor1=Predictor_(df_mts)
+_predictor2=Predictor_(df_approved)
 
 CUTOFF=0.5    
     
@@ -35,17 +45,10 @@ initial_set_page()
 
 
 
-# @st.cache_data
-# def find_most_similar(_predictor_instance, target):
-#     indexes, res, distance =_predictor_instance.find_matches(target)
-#     return indexes, res, distance
-
 @st.cache_data
-def find_most_similar(df, target):
-    predictor_instance=Predictor_(df, target)
-    indexes, res,distance=predictor_instance.find_matches()
+def find_most_similar(_predictor_instance, target):
+    indexes, res, distance =_predictor_instance.find_matches(target)
     return indexes, res, distance
-
 
 
 
@@ -70,8 +73,7 @@ if not selected_site or not selected_street or not selected_building:
 else:
     button=st.button('Искать', key='primary_search')
     if button:
-        indexes, res, distance=find_most_similar(df_mts, venue)  
-        # indexes, res, distance=find_most_similar(_predictor1, venue)  
+        indexes, res, distance=find_most_similar(_predictor1, venue)  
         mts_venue_found=res.values[0]
         if distance>CUTOFF:
             st.write('\n')
@@ -85,17 +87,27 @@ else:
     if st.session_state.button:         
         checkbox= st.checkbox('Узнать про возможности площадки')
         if checkbox:
-            indexes, res, distance=find_most_similar(df_approved, st.session_state.mts_venue_found)
-            # indexes, res, distance=find_most_similar(_predictor2, st.session_state.mts_venue_found)
+            indexes, res, distance=find_most_similar(_predictor2, st.session_state.mts_venue_found)
             if distance>CUTOFF:
                 st.write('\n')
                 st.write(':red[Не найдено сведений в реестре доступности для выбранной площадки]')
             else:
                 st.write('По Вашему запросу найдена площадка:  🏦  ', res.values[0])
                 st.write('Сведения о площадке представлены реестром доступности социальных объектов', 'https://zhit-vmeste.ru/map/')
-                df_temp=df_approved.drop(['Unnamed: 0', 'Адрес', 'Название учреждения', 'vector'], axis=1).loc[indexes]
+                df_temp=df_approved.drop(['Unnamed: 0', 'Адрес', 'Название учреждения', 'vector', 'embeddings'], axis=1).loc[indexes]
                 df_temp=df_temp.reset_index().drop('index', axis=1).T.rename({0:'Доступность объекта'}, axis=1)
-                df_temp['Доступность объекта']=df_temp['Доступность объекта'].apply(lambda x: '✅   да' if x==1 else '❌   нет')     
+                
+                def map_labels(x):
+                    if x=='1':
+                        res='✅   да'
+                    elif x=='0':
+                        res='❌   нет'
+                    else:
+                        res=x
+                    return res
+                
+                df_temp['Доступность объекта']=df_temp['Доступность объекта'].apply(lambda x: map_labels(str(x)))  
+ 
                 df_temp.index.rename('Категории посетителей', inplace=True)   
 
                 st.write(df_temp)
